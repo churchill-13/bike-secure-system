@@ -11,6 +11,11 @@ const app = express();
 app.use(express.json());
 app.use(express.static("public"));
 
+// 🌐 ROOT ROUTE
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 const PASSWORD_HASH = process.env.PASSWORD_HASH;
 
 // 📅 DOCUMENT EXPIRY DATA
