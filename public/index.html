@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bike Secure Access</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .card {
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(12px);
+            padding: 25px;
+            border-radius: 16px;
+            width: 340px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+
+        h2 {
+            margin-bottom: 5px;
+        }
+
+        .sub {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 10px;
+        }
+
+        .badge {
+            color: #22c55e;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .info {
+            font-size: 14px;
+            color: #cbd5f5;
+            text-align: left;
+            margin-bottom: 15px;
+            padding: 12px;
+            background: #0f172a;
+            border-radius: 10px;
+        }
+
+        .info p {
+            margin: 6px 0;
+        }
+
+        input {
+            width: 90%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: none;
+            outline: none;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 10px;
+            width: 100%;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 8px;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            transform: scale(1.03);
+        }
+
+        .login-btn {
+            background: #22c55e;
+        }
+
+        .call-btn {
+            background: #3b82f6;
+        }
+
+        .wa-btn {
+            background: #25D366;
+        }
+
+        .logout-btn {
+            background: #ef4444;
+        }
+
+        .doc-btn {
+            background: #22c55e;
+        }
+
+        .docs {
+            margin-top: 15px;
+        }
+
+        hr {
+            border: 0;
+            height: 1px;
+            background: #334155;
+            margin: 15px 0;
+        }
+
+        .footer {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="card">
+
+    <h2>🔐 Churchill Secure ID</h2>
+    <p class="sub">Authorized access only</p>
+    <p class="badge">🟢 Secure Document Access Enabled</p>
+
+    <!-- 👤 OWNER INFO -->
+    <div class="info">
+        <p><strong>👤 Owner:</strong> Churchill J</p>
+        <p><strong>🚗 Vehicle:</strong> TN 72 CZ 9294</p>
+        <p><strong>📞 Contact:</strong> +91-9543043034</p>
+
+        <a href="tel:+919543043034">
+            <button class="call-btn">📞 Call Owner</button>
+        </a>
+
+        <a href="https://wa.me/919543043034">
+            <button class="wa-btn">💬 WhatsApp</button>
+        </a>
+
+        <p>🚨 <strong>Emergency:</strong> Please contact immediately if accident occurs.</p>
+        <p>🙏 If this vehicle is found unattended, please contact the owner.</p>
+
+        <p>📄 This QR provides secure access to vehicle documents for verification.</p>
+        <p style="font-size:12px; color:#94a3b8;">🕒 Last Updated: March 2026</p>
+    </div>
+
+    <hr>
+
+    <!-- 🔐 LOGIN -->
+    <input type="password" id="pass" placeholder="Enter Password">
+    <button class="login-btn" onclick="login()">Login</button>
+
+    <!-- 📄 DOCS -->
+    <div id="docs" class="docs" style="display:none;">
+        <h3>📄 Documents</h3>
+
+        <button class="doc-btn" onclick="openDoc('1')">📘 RC Book</button>
+        <button class="doc-btn" onclick="openDoc('2')">🛡️ Insurance</button>
+        <button class="doc-btn" onclick="openDoc('3')">🆔 License</button>
+
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="footer">
+        🔒 Secure access system • Unauthorized use prohibited
+    </div>
+
+</div>
+     <!-- ADD THIS INSIDE .info BOX -->
+<div id="expiryBox" style="margin-top:10px; font-size:13px;"></div>
+
+<script>
+let token = "";
+
+// LOGIN
+async function login() {
+    const password = document.getElementById("pass").value;
+
+    const res = await fetch("/api/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ password })
+    });
+
+    if (res.ok) {
+        const data = await res.json();
+        token = data.token;
+        document.getElementById("docs").style.display = "block";
+    } else {
+        alert("❌ Wrong Password");
+    }
+}
+
+// OPEN DOC
+function openDoc(id) {
+    fetch("/api/docs/" + id, {
+        headers: { "Authorization": token }
+    })
+    .then(res => res.blob())
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        window.open(url);
+    });
+}
+
+// LOGOUT
+function logout() {
+    token = "";
+    document.getElementById("docs").style.display = "none";
+    document.getElementById("pass").value = "";
+}
+
+// AUTO LOGOUT
+setTimeout(() => {
+    token = "";
+    document.getElementById("docs").style.display = "none";
+    alert("Session expired. Please login again.");
+}, 10 * 60 * 1000);
+
+async function loadExpiry() {
+    const res = await fetch("/api/status");
+    const data = await res.json();
+
+    const today = new Date();
+
+    function format(dateStr, label) {
+        const d = new Date(dateStr);
+        const diff = (d - today) / (1000 * 60 * 60 * 24);
+
+        let color = "#22c55e";
+        let text = `Valid till ${d.toDateString()}`;
+
+        if (diff < 0) {
+            color = "#ef4444";
+            text = "Expired ❌";
+        } else if (diff < 30) {
+            color = "#f59e0b";
+            text = `⚠ Expiring soon (${d.toDateString()})`;
+        }
+
+        return `<p>${label}: <span style="color:${color};">${text}</span></p>`;
+    }
+
+    document.getElementById("expiryBox").innerHTML =
+        format(data.insurance, "🛡️ Insurance") +
+        format(data.license, "🆔 License") +
+        format(data.rc, "🚗 RC");
+}
+
+loadExpiry();
+</script>
+
+</body>
+</html>

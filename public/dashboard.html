@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI';
+            background: #0f172a;
+            color: white;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        .login-box {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        input {
+            padding: 10px;
+            width: 200px;
+            margin: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #22c55e;
+            border: none;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #334155;
+        }
+
+        th {
+            background: #1e293b;
+        }
+
+        .filters {
+            margin: 10px 0;
+        }
+
+        #alertBox {
+            color: red;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginPage" class="login-box">
+    <div class="card">
+        <h2>🔐 Admin Login</h2>
+        <input type="password" id="adminPass" placeholder="Enter Password">
+        <br>
+        <button onclick="login()">Login</button>
+    </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="container hidden">
+    <h2>📊 Access Logs Dashboard</h2>
+
+    <!-- 🚨 ALERT -->
+    <div id="alertBox"></div>
+
+    <!-- SEARCH -->
+    <input type="text" id="search" placeholder="Search..." onkeyup="filterLogs()">
+
+    <!-- FILTER -->
+    <div class="filters">
+        <button onclick="setFilter('ALL')">All</button>
+        <button onclick="setFilter('LOGIN SUCCESS')">Success</button>
+        <button onclick="setFilter('LOGIN FAILED')">Failed</button>
+        <button onclick="setFilter('DOC ACCESS')">Docs</button>
+    </div>
+
+    <!-- EXPORT BUTTON -->
+    <button onclick="exportCSV()">📥 Export Excel</button>
+
+    <!-- CHART -->
+    <canvas id="chart" height="100"></canvas>
+
+    <!-- TABLE -->
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>IP</th>
+                <th>Action</th>
+                <th>Device</th>
+            </tr>
+        </thead>
+        <tbody id="logTable"></tbody>
+    </table>
+</div>
+
+<script>
+let token = "";
+let allLogs = [];
+let currentFilter = "ALL";
+let chartInstance = null;
+
+// LOGIN
+async function login() {
+    const password = document.getElementById("adminPass").value;
+
+    const res = await fetch("/api/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ password })
+    });
+
+    if (!res.ok) {
+        alert("Wrong password");
+        return;
+    }
+
+    const data = await res.json();
+    token = data.token;
+
+    document.getElementById("loginPage").classList.add("hidden");
+    document.getElementById("dashboard").classList.remove("hidden");
+
+    loadLogs();
+}
+
+// LOAD LOGS
+async function loadLogs() {
+    const res = await fetch("/api/logs", {
+        headers: { "Authorization": token }
+    });
+
+    allLogs = await res.json();
+    displayLogs(allLogs);
+    drawChart();
+}
+
+// DISPLAY LOGS
+function displayLogs(logs) {
+    const table = document.getElementById("logTable");
+    table.innerHTML = "";
+
+    let suspiciousFound = false;
+
+    logs.forEach(log => {
+        if (log.suspicious) suspiciousFound = true;
+
+        const row = `<tr style="${log.suspicious ? 'background:red;' : ''}">
+            <td>${log.time}</td>
+            <td>${log.ip}</td>
+            <td>${log.action}</td>
+            <td>${log.device || "-"}</td>
+        </tr>`;
+        table.innerHTML += row;
+    });
+
+    document.getElementById("alertBox").innerText =
+        suspiciousFound ? "🚨 Suspicious activity detected!" : "";
+}
+
+// FILTER
+function filterLogs() {
+    const search = document.getElementById("search").value.toLowerCase();
+
+    let filtered = allLogs.filter(log =>
+        log.action.toLowerCase().includes(search) ||
+        log.ip.toLowerCase().includes(search)
+    );
+
+    if (currentFilter !== "ALL") {
+        filtered = filtered.filter(log =>
+            log.action.includes(currentFilter)
+        );
+    }
+
+    displayLogs(filtered);
+}
+
+function setFilter(type) {
+    currentFilter = type;
+    filterLogs();
+}
+
+// CHART (FIXED MULTIPLE RENDER ISSUE)
+function drawChart() {
+    const success = allLogs.filter(l => l.action.includes("SUCCESS")).length;
+    const failed = allLogs.filter(l => l.action.includes("FAILED")).length;
+    const docs = allLogs.filter(l => l.action.includes("DOC")).length;
+
+    if (chartInstance) chartInstance.destroy();
+
+    chartInstance = new Chart(document.getElementById("chart"), {
+        type: 'bar',
+        data: {
+            labels: ['Success', 'Failed', 'Docs'],
+            datasets: [{
+                label: 'Activity',
+                data: [success, failed, docs]
+            }]
+        }
+    });
+}
+
+// EXPORT CSV
+function exportCSV() {
+    let csv = "Time,IP,Action,Device\n";
+
+    allLogs.forEach(log => {
+        csv += `${log.time},${log.ip},${log.action},${log.device || ""}\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "access_logs.csv";
+    a.click();
+}
+</script>
+
+</body>
+</html>
