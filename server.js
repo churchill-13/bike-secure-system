@@ -25,17 +25,31 @@ const documentStatus = {
     rc: "2035-07-27"
 };
 
-// 🔐 FILE ID MAP (IMPORTANT FIX)
+// 🔐 FILE ID MAP
 const fileMap = {
     "1": "rc.pdf",
     "2": "insurance.pdf",
     "3": "license.pdf"
 };
 
-// 📊 LOGGER
-const logAccess = (req, action) => {
-    let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || req.ip;
+// 📁 CREATE LOGS FOLDER
+const logDir = path.join(__dirname, "logs");
 
+if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir);
+}
+
+// 📄 LOG FILE PATH
+const logFilePath = path.join(logDir, "access.log");
+
+// 📊 LOGGER (FIXED)
+const logAccess = (req, action) => {
+    let ip =
+        req.headers["x-forwarded-for"] ||
+        req.socket.remoteAddress ||
+        req.ip;
+
+    if (ip === "::1") ip = "LOCALHOST";
     if (ip.includes("::ffff:")) ip = ip.split("::ffff:")[1];
 
     const time = new Date().toISOString();
@@ -43,7 +57,7 @@ const logAccess = (req, action) => {
 
     const log = `${time} | ${ip} | ${action} | ${device}\n`;
 
-    fs.appendFile("logs/access.log", log, err => {
+    fs.appendFile(logFilePath, log, (err) => {
         if (err) console.error("Log error:", err);
     });
 };
@@ -73,9 +87,11 @@ app.post("/api/login", loginLimiter, async (req, res) => {
 
     logAccess(req, "LOGIN SUCCESS");
 
-    const token = jwt.sign({ user: "bike_owner" }, process.env.JWT_SECRET, {
-        expiresIn: "10m"
-    });
+    const token = jwt.sign(
+        { user: "bike_owner" },
+        process.env.JWT_SECRET,
+        { expiresIn: "10m" }
+    );
 
     res.json({ token });
 });
@@ -94,7 +110,7 @@ function verifyToken(req, res, next) {
     }
 }
 
-// 📄 DOC ACCESS (FIXED)
+// 📄 DOC ACCESS
 app.get("/api/docs/:id", verifyToken, (req, res) => {
     const file = fileMap[req.params.id];
 
@@ -111,13 +127,11 @@ app.get("/api/docs/:id", verifyToken, (req, res) => {
     res.sendFile(filePath);
 });
 
-// 📊 LOG DASHBOARD
+// 📊 LOG DASHBOARD (FIXED PATH)
 app.get("/api/logs", verifyToken, (req, res) => {
-    const logFile = path.join(__dirname, "logs", "access.log");
+    if (!fs.existsSync(logFilePath)) return res.json([]);
 
-    if (!fs.existsSync(logFile)) return res.json([]);
-
-    const data = fs.readFileSync(logFile, "utf-8");
+    const data = fs.readFileSync(logFilePath, "utf-8");
 
     const logs = data.trim().split("\n").map(line => {
         const [time, ip, action, device] = line.split(" | ");
@@ -125,6 +139,7 @@ app.get("/api/logs", verifyToken, (req, res) => {
     });
 
     const failCount = {};
+
     logs.forEach(log => {
         if (log.action.includes("FAILED")) {
             failCount[log.ip] = (failCount[log.ip] || 0) + 1;
@@ -143,7 +158,7 @@ app.get("/api/status", (req, res) => {
     res.json(documentStatus);
 });
 
-// 🚀 START
-app.listen(process.env.PORT, () => {
-    console.log("🚀 Server running on http://localhost:" + process.env.PORT);
+// 🚀 START SERVER
+app.listen(process.env.PORT, "0.0.0.0", () => {
+    console.log("🚀 Server running on port " + process.env.PORT);
 });
